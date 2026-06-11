@@ -1,6 +1,21 @@
 const ASSET_PATH = "assets/";
 const ASSET_VERSION = "20260601-village-dialogue";
 
+(function setupResponsiveScale() {
+  const BASE_W = 1100;
+  const BASE_H = 618.75;
+  function apply() {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const scale = Math.min(vw / BASE_W, vh / BASE_H);
+    document.documentElement.style.setProperty("--game-scale", scale);
+  }
+  apply();
+  window.addEventListener("resize", apply);
+  window.addEventListener("orientationchange", apply);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", apply);
+})();
+
 const levels = [
   {
     chapter: "桃花林",
