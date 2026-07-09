@@ -5,15 +5,34 @@ const ASSET_VERSION = "20260601-village-dialogue";
   const BASE_W = 1100;
   const BASE_H = 618.75;
   function apply() {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    // visualViewport 才是手機實際可視區域（扣掉網址列等），innerWidth/Height 為後備
+    const vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+    const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
     const scale = Math.min(vw / BASE_W, vh / BASE_H);
     document.documentElement.style.setProperty("--game-scale", scale);
   }
   apply();
   window.addEventListener("resize", apply);
-  window.addEventListener("orientationchange", apply);
-  if (window.visualViewport) window.visualViewport.addEventListener("resize", apply);
+  window.addEventListener("load", apply);
+  // 轉向後手機網址列會重新伸縮，延遲多算幾次確保定位穩定
+  window.addEventListener("orientationchange", () => {
+    apply();
+    window.setTimeout(apply, 250);
+    window.setTimeout(apply, 600);
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", apply);
+    window.visualViewport.addEventListener("scroll", apply);
+  }
+  // 旋轉提示：點擊即永久關閉（給無法/不想轉向的玩家）
+  const hint = document.getElementById("rotateHint");
+  if (hint) {
+    const dismiss = () => hint.classList.add("dismissed");
+    hint.addEventListener("click", dismiss);
+    hint.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") dismiss();
+    });
+  }
 })();
 
 const levels = [
