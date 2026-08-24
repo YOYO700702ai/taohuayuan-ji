@@ -4,33 +4,103 @@ const ASSET_VERSION = "20260601-village-dialogue";
 (function setupResponsiveScale() {
   const BASE_W = 1100;
   const BASE_H = 618.75;
+
+  function getViewportSize() {
+    return {
+      width: (window.visualViewport && window.visualViewport.width) || window.innerWidth,
+      height: (window.visualViewport && window.visualViewport.height) || window.innerHeight
+    };
+  }
+
   function apply() {
     // visualViewport 才是手機實際可視區域（扣掉網址列等），innerWidth/Height 為後備
-    const vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
-    const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-    const scale = Math.min(vw / BASE_W, vh / BASE_H);
+    const viewport = getViewportSize();
+    const isForcedLandscape = document.documentElement.classList.contains("forced-landscape");
+    const logicalWidth = isForcedLandscape ? viewport.height : viewport.width;
+    const logicalHeight = isForcedLandscape ? viewport.width : viewport.height;
+    const scale = Math.min(logicalWidth / BASE_W, logicalHeight / BASE_H);
+
+    document.documentElement.style.setProperty("--viewport-width", `${viewport.width}px`);
+    document.documentElement.style.setProperty("--viewport-height", `${viewport.height}px`);
     document.documentElement.style.setProperty("--game-scale", scale);
   }
+
+  function syncForcedLandscape() {
+    const viewport = getViewportSize();
+    const root = document.documentElement;
+
+    // 真正轉成橫向後移除 CSS 備援，恢復原本的橫向排版。
+    if (root.classList.contains("forced-landscape") && viewport.width > viewport.height) {
+      root.classList.remove("forced-landscape");
+      document.getElementById("rotateHint")?.classList.remove("dismissed");
+    }
+    apply();
+  }
+
   apply();
-  window.addEventListener("resize", apply);
-  window.addEventListener("load", apply);
+  window.addEventListener("resize", syncForcedLandscape);
+  window.addEventListener("load", syncForcedLandscape);
   // 轉向後手機網址列會重新伸縮，延遲多算幾次確保定位穩定
   window.addEventListener("orientationchange", () => {
-    apply();
-    window.setTimeout(apply, 250);
-    window.setTimeout(apply, 600);
+    syncForcedLandscape();
+    window.setTimeout(syncForcedLandscape, 250);
+    window.setTimeout(syncForcedLandscape, 600);
   });
   if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", apply);
+    window.visualViewport.addEventListener("resize", syncForcedLandscape);
     window.visualViewport.addEventListener("scroll", apply);
   }
-  // 旋轉提示：點擊即永久關閉（給無法/不想轉向的玩家）
+
+  // 由玩家手勢先請求全螢幕，再鎖定橫向；iOS 等不支援時使用 CSS 旋轉備援。
   const hint = document.getElementById("rotateHint");
   if (hint) {
-    const dismiss = () => hint.classList.add("dismissed");
-    hint.addEventListener("click", dismiss);
+    let enteringLandscape = false;
+
+    const waitForViewport = () => new Promise((resolve) => window.setTimeout(resolve, 500));
+
+    const enterLandscape = async () => {
+      if (enteringLandscape) return;
+      enteringLandscape = true;
+      hint.setAttribute("aria-busy", "true");
+
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (error) {
+        // 內建瀏覽器與 iOS 可能拒絕全螢幕，稍後會改用 CSS 備援。
+      }
+
+      try {
+        if (screen.orientation && typeof screen.orientation.lock === "function") {
+          await screen.orientation.lock("landscape");
+        }
+      } catch (error) {
+        // 部分瀏覽器即使已全螢幕仍不允許鎖定方向，稍後會改用 CSS 備援。
+      }
+
+      await waitForViewport();
+
+      const viewport = getViewportSize();
+      if (viewport.width <= viewport.height) {
+        document.documentElement.classList.add("forced-landscape");
+      } else {
+        document.documentElement.classList.remove("forced-landscape");
+      }
+
+      hint.classList.add("dismissed");
+      hint.removeAttribute("aria-busy");
+      enteringLandscape = false;
+      apply();
+      window.setTimeout(syncForcedLandscape, 250);
+    };
+
+    hint.addEventListener("click", enterLandscape);
     hint.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") dismiss();
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        enterLandscape();
+      }
     });
   }
 })();

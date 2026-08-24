@@ -53,6 +53,22 @@ body {
     display: none;
   }
 }
+
+/* 不支援方向鎖定的手機（特別是 iPhone）以 CSS 將整個遊戲畫面轉成橫向。 */
+html.forced-landscape .rotate-hint {
+  display: none !important;
+}
+
+html.forced-landscape .page-shell {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: var(--viewport-height, 100vh);
+  height: var(--viewport-width, 100vw);
+  transform: translate(-50%, -50%) rotate(90deg);
+  transform-origin: center center;
+}
+
 .rotate-hint-inner {
   max-width: 320px;
 }
